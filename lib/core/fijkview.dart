@@ -1,3 +1,4 @@
+
 //
 //MIT License
 //
@@ -39,8 +40,10 @@ typedef FijkPanelWidgetBuilder = Widget Function(FijkPlayer player,
 class FijkFit {
   const FijkFit(
       {this.alignment = Alignment.center,
-      this.aspectRatio = -1,
-      this.sizeFactor = 1.0});
+        this.aspectRatio = -1,
+        this.sizeFactor = 1.0,
+        this.fitOffset = const Offset(0.0, 0.0),
+      });
 
   /// [Alignment] for this [FijkView] Container.
   /// alignment is applied to Texture inner FijkView
@@ -71,11 +74,13 @@ class FijkFit {
   ///  * (-3.0, -2.0) scaling up to [FijkView]'s height
   final double sizeFactor;
 
+  final Offset fitOffset;
   /// Fill the target FijkView box by distorting the video's aspect ratio.
   static const FijkFit fill = FijkFit(
     sizeFactor: 1.0,
     aspectRatio: double.infinity,
     alignment: Alignment.center,
+    fitOffset: Offset(0.0, 0.0),
   );
 
   /// As large as possible while still containing the video entirely within the
@@ -84,6 +89,7 @@ class FijkFit {
     sizeFactor: 1.0,
     aspectRatio: -1,
     alignment: Alignment.center,
+    fitOffset: Offset(0.0, 0.0),
   );
 
   /// As small as possible while still covering the entire target FijkView box.
@@ -91,6 +97,7 @@ class FijkFit {
     sizeFactor: -0.5,
     aspectRatio: -1,
     alignment: Alignment.center,
+    fitOffset: Offset(0.0, 0.0),
   );
 
   /// Make sure the full width of the source is shown, regardless of
@@ -333,11 +340,11 @@ class _FijkViewState extends State<FijkView> {
       child: _fullScreen
           ? Container()
           : _InnerFijkView(
-              fijkViewState: this,
-              fullScreen: false,
-              cover: widget.cover,
-              data: _fijkData,
-            ),
+        fijkViewState: this,
+        fullScreen: false,
+        cover: widget.cover,
+        data: _fijkData,
+      ),
     );
   }
 }
@@ -496,7 +503,11 @@ class __InnerFijkViewState extends State<_InnerFijkView> {
   Offset getTxOffset(BoxConstraints constraints, Size childSize, FijkFit fit) {
     final Alignment resolvedAlignment = fit.alignment;
     final Offset diff = (constraints.biggest - childSize) as Offset;
-    return resolvedAlignment.alongOffset(diff);
+    final alignOffset = resolvedAlignment.alongOffset(diff) ;
+
+    debugPrint("${diff}");
+    debugPrint("${resolvedAlignment.alongOffset(diff)}");
+    return Offset(fit.fitOffset.dx + alignOffset.dx, fit.fitOffset.dy + alignOffset.dy);
   }
 
   Widget buildTexture() {
@@ -533,6 +544,7 @@ class __InnerFijkViewState extends State<_InnerFijkView> {
     }
     _videoRender = value.videoRenderStart;
 
+    debugPrint("build player");
     return LayoutBuilder(builder: (ctx, constraints) {
       // get child size
       final Size childSize = getTxSize(constraints, _fit);
