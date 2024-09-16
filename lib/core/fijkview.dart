@@ -1,4 +1,3 @@
-
 //
 //MIT License
 //
@@ -34,16 +33,29 @@ part of fijkplayer;
 typedef FijkPanelWidgetBuilder = Widget Function(FijkPlayer player,
     FijkData data, BuildContext context, Size viewSize, Rect texturePos);
 
+enum BoundType {
+  leftLimit,
+  topLimit,
+  rightLimit,
+  bottomLimit,
+  leftNoLimit,
+  topNoLimit,
+  rightNoLimit,
+  bottomNoLimit,
+}
+
 /// How a video should be inscribed into [FijkView].
 ///
 /// See also [BoxFit]
 class FijkFit {
-  const FijkFit(
-      {this.alignment = Alignment.center,
-        this.aspectRatio = -1,
-        this.sizeFactor = 1.0,
-        this.fitOffset = const Offset(0.0, 0.0),
-      });
+  const FijkFit({this.alignment = Alignment.center,
+    this.aspectRatio = -1,
+    this.sizeFactor = 1.0,
+    this.fitOffset = const Offset(0.0, 0.0),
+    this.onBound = null,
+  });
+
+  final void Function(BoundType)? onBound;
 
   /// [Alignment] for this [FijkView] Container.
   /// alignment is applied to Texture inner FijkView
@@ -75,6 +87,7 @@ class FijkFit {
   final double sizeFactor;
 
   final Offset fitOffset;
+
   /// Fill the target FijkView box by distorting the video's aspect ratio.
   static const FijkFit fill = FijkFit(
     sizeFactor: 1.0,
@@ -268,8 +281,8 @@ class _FijkViewState extends State<FijkView> {
     widget.onDispose?.call(_fijkData);
   }
 
-  AnimatedWidget _defaultRoutePageBuilder(
-      BuildContext context, Animation<double> animation) {
+  AnimatedWidget _defaultRoutePageBuilder(BuildContext context,
+      Animation<double> animation) {
     return AnimatedBuilder(
       animation: animation,
       builder: (BuildContext context, Widget? child) {
@@ -300,13 +313,19 @@ class _FijkViewState extends State<FijkView> {
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual,
         overlays: []);
     bool changed = false;
-    var orientation = MediaQuery.of(context).orientation;
+    var orientation = MediaQuery
+        .of(context)
+        .orientation;
     FijkLog.d("start enter fullscreen. orientation:$orientation");
     if (_vWidth >= _vHeight) {
-      if (MediaQuery.of(context).orientation == Orientation.portrait)
+      if (MediaQuery
+          .of(context)
+          .orientation == Orientation.portrait)
         changed = await FijkPlugin.setOrientationLandscape();
     } else {
-      if (MediaQuery.of(context).orientation == Orientation.landscape)
+      if (MediaQuery
+          .of(context)
+          .orientation == Orientation.landscape)
         changed = await FijkPlugin.setOrientationPortrait();
     }
     FijkLog.d("screen orientation changed:$changed");
@@ -503,11 +522,52 @@ class __InnerFijkViewState extends State<_InnerFijkView> {
   Offset getTxOffset(BoxConstraints constraints, Size childSize, FijkFit fit) {
     final Alignment resolvedAlignment = fit.alignment;
     final Offset diff = (constraints.biggest - childSize) as Offset;
-    final alignOffset = resolvedAlignment.alongOffset(diff) ;
+    final alignOffset = resolvedAlignment.alongOffset(diff);
 
     debugPrint("${diff}");
     debugPrint("${resolvedAlignment.alongOffset(diff)}");
-    return Offset(fit.fitOffset.dx + alignOffset.dx, fit.fitOffset.dy + alignOffset.dy);
+    final double maxWidth = constraints.maxWidth;
+    final double maxHeight = constraints.maxHeight;
+    final double childWidth = childSize.width;
+    final double childHeight = childSize.height;
+    double dx = (alignOffset.dx);
+    double dy = (alignOffset.dy);
+    if (fit.sizeFactor > 1.0 && (childWidth > maxWidth && childHeight > maxHeight)) {
+      double dxMin = childWidth < maxWidth? 0 : -(childWidth - maxWidth);
+      double dyMin = childHeight < maxHeight? 0 : -(childHeight - maxHeight);
+      double dxMax = 0;
+      double dyMax = 0;
+      dx = (fit.fitOffset.dx + alignOffset.dx).clamp(dxMin, dxMax);
+      dy = (fit.fitOffset.dy + alignOffset.dy).clamp(dyMin, dyMax);
+      if (dx == dxMin) {
+        fit.onBound?.call(BoundType.leftLimit);
+      }else {
+        fit.onBound?.call(BoundType.leftNoLimit);
+      }
+      if (dx == dxMax) {
+        fit.onBound?.call(BoundType.rightLimit);
+      }else {
+        fit.onBound?.call(BoundType.rightNoLimit);
+      }
+      if (dy == dyMin) {
+        fit.onBound?.call(BoundType.bottomLimit);
+      }else {
+        fit.onBound?.call(BoundType.bottomNoLimit);
+      }
+      if (dy == dyMax) {
+        fit.onBound?.call(BoundType.topLimit);
+      }else {
+        fit.onBound?.call(BoundType.topNoLimit);
+      }
+    }else {
+      fit.onBound?.call(BoundType.leftLimit);
+      fit.onBound?.call(BoundType.rightLimit);
+      fit.onBound?.call(BoundType.topLimit);
+      fit.onBound?.call(BoundType.bottomLimit);
+    }
+
+
+    return Offset(dx, dy);
   }
 
   Widget buildTexture() {
